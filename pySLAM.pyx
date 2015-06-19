@@ -6,7 +6,7 @@ import numpy as np
 
 cdef class Slam_Context:
     cdef SlamSystem *thisptr
-    def __cinit__(self, int w, int h,float[::1] K, enableSLAM=True):
+    def __cinit__(self, int w, int h,float[::1] K, enableSLAM=False):
         self.test()
         cdef Matrix3f _K
         cdef float * K_d = _K.data()

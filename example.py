@@ -3,9 +3,9 @@ import cv2
 import numpy as np
 from time import time,sleep
 import os
-undistorter = pySLAM.Slam_Undistorter('/home/michael/LSD_room/cameraCalibration.cfg')
-
-files = [os.path.join('/home/michael/LSD_room/images',f) for f in os.listdir('/home/michael/LSD_room/images/')]
+undistorter = pySLAM.Slam_Undistorter('/home/pupil/Downloads/LSD_room/cameraCalibration.cfg')
+images = '/home/pupil/Downloads/LSD_room/images'
+files = [os.path.join(images,f) for f in os.listdir(images)]
 files.sort()
 
 #K = np.float32(np.load('/home/michael/git/pupil/capture_settings/camera_matrix.npy'))

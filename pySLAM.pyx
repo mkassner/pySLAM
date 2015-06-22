@@ -1,19 +1,55 @@
-from slam_system cimport Matrix3f
-from slam_system cimport SlamSystem 
 cimport slam_system as sls
 cimport numpy as np
 import numpy as np
+from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
+import time
+
+cdef extern from "Python.h":
+    void PyEval_InitThreads()
+
+PyEval_InitThreads()
+
+
+cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
+    PyObject* callback
+
+    __init__(object callback):  # constructor. "this" argument is implicit.
+        Py_INCREF(callback)
+        this.callback = <PyObject*>callback
+
+    __dealloc__():  # destructor
+        Py_DECREF(<object>this.callback)
+
+    void publishKeyframe(sls.Frame* kf) with gil:
+        pass
+        print "Key Frame"
+        # (<object>this.callback)()
+
+    void publishTrackedFrame(sls.Frame* kf) with gil:
+        pass
+        print "Tracked Frame"
+        # (<object>this.callback)()
+
+    void publishKeyframeGraph(sls.KeyFrameGraph* graph) nogil:
+        sls.printf("Graph \n")
+
+    void publishDebugInfo(sls.Matrix201f data) with gil:
+        print 'DebugInfo'
+
 
 cdef class Slam_Context:
-    cdef SlamSystem *thisptr
-    def __cinit__(self, int w, int h,float[::1] K, enableSLAM=False):
+    cdef sls.SlamSystem *thisptr
+    cdef cyOutput3DWrapper * output_wrapper
+    def __cinit__(self, int w, int h,float[::1] K, enableSLAM=True):
         self.test()
-        cdef Matrix3f _K
+        cdef sls.Matrix3f _K
         cdef float * K_d = _K.data()
 
         for x in range(9):
             K_d[x] = K[x]
-        self.thisptr = new SlamSystem(w, h, _K, enableSLAM)
+        self.thisptr = new sls.SlamSystem(w, h, _K, enableSLAM)
+
+
         
     def __init__(self, int w, int h, enableSLAM=True):
         pass
@@ -21,6 +57,17 @@ cdef class Slam_Context:
     def __dealloc__(self):
         del self.thisptr
         
+    def setVisualization(self):
+        def hi():
+            print "hi"
+
+        cdef cyOutput3DWrapper* output_wrapper = new cyOutput3DWrapper(hi)
+        self.output_wrapper = output_wrapper
+        self.thisptr.setVisualization(output_wrapper)
+
+    def unsetVisualization(self):
+        self.thisptr.setVisualization(NULL)
+
     def init(self, unsigned char[:,::1] image,int id, double ts):
         self.thisptr.randomInit(&image[0,0], ts, id)
         
@@ -29,6 +76,7 @@ cdef class Slam_Context:
             self.thisptr.trackFrame(&image[0,0], id, blockedUntilMapped, ts)
         
     def finalize(self):
+        self.thisptr.optimizeGraph()
         self.thisptr.finalize()
         
     cdef test(self):

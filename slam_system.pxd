@@ -1,12 +1,45 @@
 from libcpp.string cimport string
-from io_wrapper cimport Output3DWrapper
+from libcpp.vector cimport vector
+from libc.stdio cimport printf
 
 cdef extern from "<Eigen/Eigen>" namespace "Eigen":
     cdef cppclass Matrix3f:
         Matrix3f() except + 
         Matrix3f(int rows, int cols) except + 
         float * data()
-        
+
+    # cdef cppclass Matrix[T, C, R]: # eigen defaults to column major layout
+    #     Matrix() except + 
+    #     float * data()
+
+
+    cdef cppclass Matrix31f "Eigen::Matrix<float, 3,1>": # eigen defaults to column major layout
+        Matrix() except + 
+        float * data()
+
+    cdef cppclass Matrix201f "Eigen::Matrix<float, 20,1>": # eigen defaults to column major layout
+        Matrix() except + 
+        float * data()
+
+cdef extern from "<IOWrapper/Output3DWrapper.h>" namespace "lsd_slam":
+    cdef cppclass Output3DWrapper:
+        _Output3DWrapper() except +
+
+
+        void publishKeyframeGraph(KeyFrameGraph* graph) nogil
+        # publishes a keyframe. if that frame already existis, it is overwritten, otherwise it is added.
+        void publishKeyframe(Frame* kf) with gil
+
+        # published a tracked frame that did not become a keyframe (yet; i.e. has no depth data)
+        void publishTrackedFrame(Frame* kf) with gil
+
+        #publishes graph and all constraints, as well as updated KF poses.
+        # void publishTrajectory(vector[Matrix31f] pt, string identifier) with gil
+        # void publishTrajectoryIncrement(Matrix31f pt, string identifier) with gil
+
+        void publishDebugInfo(Matrix201f data) with gil
+
+
 cdef extern from "<util/settings.h>" namespace "lsd_slam":
     # keystrokes
     extern bint autoRun
@@ -83,22 +116,33 @@ cdef extern from "<util/settings.h>" namespace "lsd_slam":
     
     extern bint continuousPCOutput
 
+
+cdef extern from "<GlobalMapping/KeyFrameGraph.h>" namespace "lsd_slam":
+    cdef cppclass KeyFrameGraph:
+        KeyFrameGraph() except +
+
+cdef extern from "SlamSystem.h" namespace "lsd_slam":
+    cdef cppclass Frame:
+        Frame(int id, int width, int height,Matrix3f K, double timestamp, unsigned char* image) except +
+
+
 cdef extern from "SlamSystem.h" namespace "lsd_slam":
     ctypedef struct Frame:
         pass
 
     cdef cppclass SlamSystem:
-        SlamSystem(int, int, Matrix3f, bool) except +
+        SlamSystem(int w, int h, Matrix3f K, bint enableSLAM) except +
         
-        void randomInit(unsigned char* image, double timeStamp, int id)
+        void randomInit(unsigned char* image, double timeStamp, int id) nogil
         void trackFrame(unsigned char* image, unsigned int frameID, bint blockUntilMapped, double timestamp) nogil
         
         void finalize()
-        
-        void setVisualization(Output3DWrapper*)
+        void optimizeGraph()
+        void setVisualization(Output3DWrapper* outputWrapper) except +
         
         Frame* getCurrentKeyframe()
         
+
 cdef extern from "<util/Undistorter.h>" namespace "lsd_slam":
     cdef cppclass Undistorter:
         Undistorter() except +

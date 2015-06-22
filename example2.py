@@ -38,7 +38,7 @@ print img.shape
 system = pySLAM.Slam_Context(img.shape[1],img.shape[0], K.flatten())
 system.init(img,0,0)
 ts = time()
-for x in range(1,100000):
+for x in range(1,100):
     s,img = cap.read()
     if not s:
     	break

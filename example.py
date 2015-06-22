@@ -5,6 +5,7 @@ from time import time,sleep
 import os
 
 
+pySLAM.init_threads()
 undistorter = pySLAM.Slam_Undistorter('/home/pupil/Downloads/LSD_room/cameraCalibration.cfg')
 images = '/home/pupil/Downloads/LSD_room/images'
 files = [os.path.join(images,f) for f in os.listdir(images)]
@@ -33,10 +34,12 @@ for f in files:
     img = cv2.imread(f, cv2.CV_LOAD_IMAGE_GRAYSCALE)
     img = undistorter.undistort(img)
     system.track_frame(img,x,x/30.,False)
-    if x == 200:
+    if x == 700:
     	# system.unsetVisualization()
-    	break
+    	pass
 
 system.finalize()
+sleep(1)
 del system
 print 'Done'
+

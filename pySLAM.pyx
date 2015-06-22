@@ -7,7 +7,8 @@ import time
 cdef extern from "Python.h":
     void PyEval_InitThreads()
 
-PyEval_InitThreads()
+def init_threads():
+    PyEval_InitThreads()
 
 
 cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
@@ -16,6 +17,7 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
     __init__(object callback):  # constructor. "this" argument is implicit.
         Py_INCREF(callback)
         this.callback = <PyObject*>callback
+
 
     __dealloc__():  # destructor
         Py_DECREF(<object>this.callback)
@@ -30,8 +32,8 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
         print "Tracked Frame"
         # (<object>this.callback)()
 
-    void publishKeyframeGraph(sls.KeyFrameGraph* graph) nogil:
-        sls.printf("Graph \n")
+    void publishKeyframeGraph(sls.KeyFrameGraph* graph) with gil:
+        print 'Graph'
 
     void publishDebugInfo(sls.Matrix201f data) with gil:
         print 'DebugInfo'
@@ -41,9 +43,9 @@ cdef class Slam_Context:
     cdef sls.SlamSystem *thisptr
     cdef cyOutput3DWrapper * output_wrapper
     def __cinit__(self, int w, int h,float[::1] K, enableSLAM=True):
-        self.test()
         cdef sls.Matrix3f _K
         cdef float * K_d = _K.data()
+        self.set_settings()
 
         for x in range(9):
             K_d[x] = K[x]
@@ -76,10 +78,12 @@ cdef class Slam_Context:
             self.thisptr.trackFrame(&image[0,0], id, blockedUntilMapped, ts)
         
     def finalize(self):
-        self.thisptr.optimizeGraph()
         self.thisptr.finalize()
-        
-    cdef test(self):
+
+    def optimize_graph(self):
+        self.thisptr.optimizeGraph()
+ 
+    def set_settings(self):
         sls.minUseGrad = 5       #1, 50
         sls.cameraPixelNoise2 = 16  #1, 50
         
@@ -89,21 +93,20 @@ cdef class Slam_Context:
         sls.doSlam = True
         sls.doKFReActivation = True
         sls.doMapping = True
-        sls.useFabMap = False
+        sls.useFabMap = True
 
         sls.allowNegativeIdepths = True
         sls.useSubpixelStereo = True
         sls.useAffineLightningEstimation = False
-        sls.multiThreading = False
+        sls.multiThreading = True
         
         sls.maxLoopClosureCandidates = 10 #0, 50
         sls.loopclosureStrictness = 1.5 #0.0, 100
         sls.relocalizationTH = 0.7 #0, 1
         
         sls.depthSmoothingFactor = 1 # 0, 10
-
-    #def set_output_wrapper(self, output_wrapper):
-    #   self.thisptr.setVisualization(output_wrapper)
+        # todo. automate this. Load dependecies with package.
+        sls.packagePath = '/home/pupil/rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/'
 
 cdef class Slam_Undistorter:
     cdef sls.Undistorter *thisptr

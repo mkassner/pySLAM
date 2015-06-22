@@ -26,7 +26,7 @@ cdef extern from "<IOWrapper/Output3DWrapper.h>" namespace "lsd_slam":
         _Output3DWrapper() except +
 
 
-        void publishKeyframeGraph(KeyFrameGraph* graph) nogil
+        void publishKeyframeGraph(KeyFrameGraph* graph) with gil
         # publishes a keyframe. if that frame already existis, it is overwritten, otherwise it is added.
         void publishKeyframe(Frame* kf) with gil
 
@@ -115,7 +115,7 @@ cdef extern from "<util/settings.h>" namespace "lsd_slam":
     extern bint saveAllTrackingStagesInternal
     
     extern bint continuousPCOutput
-
+    extern string packagePath
 
 cdef extern from "<GlobalMapping/KeyFrameGraph.h>" namespace "lsd_slam":
     cdef cppclass KeyFrameGraph:

@@ -22,12 +22,57 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
     __dealloc__():  # destructor
         Py_DECREF(<object>this.callback)
 
-    void publishKeyframe(sls.Frame* kf) with gil:
-        pass
+    void publishKeyframe(sls.Frame* f) with gil:
+
+        cdef sls.shared_lock[sls.shared_mutex] lock = f.getActiveLock()
+        print f.id(),f.width(),f.height()
+
+        cdef sls.Sim3 pose = f.getScaledCamToWorld()
+        for x in range(7):
+            print pose.data()[x]
+        pose.data() # assuming float data and skipping explicit sim3 cast
+
+        # boost::shared_lock<boost::shared_mutex> lock = f->getActiveLock();
+
+        # fMsg.id = f->id();
+        # fMsg.time = f->timestamp();
+        # fMsg.isKeyframe = true;
+
+        # int w = f->width(publishLvl);
+        # int h = f->height(publishLvl);
+
+        # memcpy(fMsg.camToWorld.data(),f->getScaledCamToWorld().cast<float>().data(),sizeof(float)*7);
+        # fMsg.fx = f->fx(publishLvl);
+        # fMsg.fy = f->fy(publishLvl);
+        # fMsg.cx = f->cx(publishLvl);
+        # fMsg.cy = f->cy(publishLvl);
+        # fMsg.width = w;
+        # fMsg.height = h;
+
+
+        # fMsg.pointcloud.resize(w*h*sizeof(InputPointDense));
+
+        # InputPointDense* pc = (InputPointDense*)fMsg.pointcloud.data();
+
+        # const float* idepth = f->idepth(publishLvl);
+        # const float* idepthVar = f->idepthVar(publishLvl);
+        # const float* color = f->image(publishLvl);
+
+        # for(int idx=0;idx < w*h; idx++)
+        # {
+        #     pc[idx].idepth = idepth[idx];
+        #     pc[idx].idepth_var = idepthVar[idx];
+        #     pc[idx].color[0] = color[idx];
+        #     pc[idx].color[1] = color[idx];
+        #     pc[idx].color[2] = color[idx];
+        #     pc[idx].color[3] = color[idx];
+        # }
+
+
         print "Key Frame"
         # (<object>this.callback)()
 
-    void publishTrackedFrame(sls.Frame* kf) with gil:
+    void publishTrackedFrame(sls.Frame* f) with gil:
         pass
         print "Tracked Frame"
         # (<object>this.callback)()

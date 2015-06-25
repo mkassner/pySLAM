@@ -50,9 +50,19 @@ cdef class SLAM_Frame:
         self.timestamp =  timestamp
         self.cam_to_world = cam_to_world
 
+    def __str__(self):
+        return "SLAM Frame id:%s,ts:%s"%(self.frame_id,self.timestamp)
+
 cdef class SLAM_K_Frame(SLAM_Frame):
     cdef  float[:,::1] point_cloud
 
+    def __str__(self):
+        cdef int pc_count 
+        if self.point_cloud is None:
+            pc_count = 0
+        else:
+            pc_count = len(self.point_cloud)
+        return "SLAM Key Frame id:%s,ts:%s, Point Count:%s"%(self.frame_id,self.timestamp,pc_count)
 
 cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
     PyObject* callback
@@ -173,10 +183,6 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
         #     glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * vertexBufferNumPoints, tmpBuffer, GL_STATIC_DRAW);
         #     vertexBufferIdValid = true;
 
-
-
-        print "Key Frame",f.id()
-
         (<object>this.callback)(frame)
 
     void publishTrackedFrame(sls.Frame* f) with gil:
@@ -205,7 +211,7 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
         for x in range(16):
             trans_mat[x] = t_mat[x]
 
-        cdef SLAM_Frame frame = SLAM_K_Frame(  f.id(),
+        cdef SLAM_Frame frame = SLAM_Frame(  f.id(),
                                 w,h,
                                 fx,fy,cx,cy,
                                 scale,
@@ -243,11 +249,8 @@ cdef class Slam_Context:
     def __dealloc__(self):
         del self.thisptr
         
-    def setVisualization(self):
-        def hi():
-            print "hi"
-
-        cdef cyOutput3DWrapper* output_wrapper = new cyOutput3DWrapper(hi)
+    def setVisualization(self,callback):
+        cdef cyOutput3DWrapper* output_wrapper = new cyOutput3DWrapper(callback)
         self.output_wrapper = output_wrapper
         self.thisptr.setVisualization(output_wrapper)
 

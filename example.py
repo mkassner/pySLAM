@@ -23,7 +23,12 @@ img = cv2.imread(f, cv2.CV_LOAD_IMAGE_GRAYSCALE)
 img = undistorter.undistort(img)
 
 system = pySLAM.Slam_Context(img.shape[1],img.shape[0], K.flatten())
-system.setVisualization()
+def callback(f):
+	if isinstance(f,pySLAM.SLAM_K_Frame):
+		print f
+	else:
+		pass
+system.setVisualization(callback)
 
 system.init(img,0,0)
 ts = time()

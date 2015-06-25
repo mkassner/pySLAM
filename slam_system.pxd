@@ -2,11 +2,14 @@ from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libc.stdio cimport printf
 
+
 cdef extern from "<Eigen/Eigen>" namespace "Eigen":
     cdef cppclass Matrix3f:
         Matrix3f() except + 
         Matrix3f(int rows, int cols) except + 
         float * data()
+
+
 
     cdef cppclass aligned_allocator[T]: 
         pass
@@ -19,18 +22,31 @@ cdef extern from "<Eigen/Eigen>" namespace "Eigen":
         Matrix() except + 
         float * data()
 
+
+    cdef cppclass Matrix4f "Eigen::Matrix<float, 4,4>": # eigen defaults to column major layout
+        Matrix() except + 
+        float * data()
+
     cdef cppclass Vector4f:
         pass
 
 
-cdef extern from "<util/SophusUtil.h>" :
+cdef extern from "<util/SophusUtil.h>":
+    # type is set to double in header file.
     cdef cppclass SE3:
         pass
     cdef cppclass Sim3:
-        # Sim3[T] cast[T]()
-        float * data()
+        double * data()
+        const double scale() 
+        const Transformation matrix() const
+
     cdef cppclass SO3:
         pass
+
+cdef extern from "<sophus/sim3.hpp>" namespace "Sophus":
+    cdef cppclass Transformation:
+        double * data()
+
     
 
 cdef extern from "<boost/thread/shared_mutex.hpp>" namespace "boost":
@@ -156,39 +172,41 @@ cdef extern from "<vector>" namespace "std" nogil:
 
 cdef extern from "<DataStructures/Frame.h>" namespace "lsd_slam":
     cdef cppclass Frame:
-        Frame(int id, int width, int height,Matrix3f& K, double timestamp, unsigned char* image) except +
+        Frame(int id, int width, int height,Matrix3f& K, double timestamp, const unsigned char* image) except +
 
+
+        #DEFAULT VALUES (level=0 and num=0) are not yet supported by python
         int id()
-        int width()
-        int height()
-        const Matrix3f& K(int level = 0) const
-        const Matrix3f& KInv(int level = 0) const
+        int width(int level ) const
+        int height(int level ) const
+        const Matrix3f& K(int level ) const
+        const Matrix3f& KInv(int level ) const
         # /** Returns K(0, 0). */
-        inline float fx(int level = 0) const
+        inline float fx(int level ) const
         # /** Returns K(1, 1). */
-        inline float fy(int level = 0) const
+        inline float fy(int level ) const
         # /** Returns K(0, 2). */
-        inline float cx(int level = 0) const
+        inline float cx(int level ) const
         # /** Returns K(1, 2). */
-        inline float cy(int level = 0) const
+        inline float cy(int level ) const
         # /** Returns KInv(0, 0). */
-        inline float fxInv(int level = 0) const
+        inline float fxInv(int level ) const
         # /** Returns KInv(1, 1). */
-        inline float fyInv(int level = 0) const
+        inline float fyInv(int level ) const
         # /** Returns KInv(0, 2). */
-        inline float cxInv(int level = 0) const
+        inline float cxInv(int level ) const
         # /** Returns KInv(1, 2). */
-        inline float cyInv(int level = 0) const
+        inline float cyInv(int level ) const
         
         # /** Returns the frame's recording timestamp. */
         inline double timestamp() const
 
-        inline float* image(int level = 0)
-        inline const Vector4f* gradients(int level = 0)
-        inline const float* maxGradients(int level = 0)
+        inline float* image(int level )
+        inline const Vector4f* gradients(int level )
+        inline const float* maxGradients(int level )
         inline bint hasIDepthBeenSet() const
-        inline const float* idepth(int level = 0)
-        inline const float* idepthVar(int level = 0)
+        inline const float* idepth(int level )
+        inline const float* idepthVar(int level )
         inline const unsigned char* validity_reAct()
         inline const float* idepth_reAct()
         inline const float* idepthVar_reAct()
@@ -198,7 +216,7 @@ cdef extern from "<DataStructures/Frame.h>" namespace "lsd_slam":
         inline void clear_refPixelWasGood()
         FramePoseStruct* pose
 
-        Sim3 getScaledCamToWorld(int num=0)
+        Sim3 getScaledCamToWorld(int)
         bint hasTrackingParent()
         Frame* getTrackingParent() 
         shared_lock[shared_mutex] getActiveLock()

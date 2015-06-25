@@ -17,17 +17,9 @@ map1, map2 = cv2.initUndistortRectifyMap(K, dist_coef, np.identity(3), newCamera
 
 K = K.T
 
-# K = np.zeros((3,3), dtype=np.float32)
-# K[0,0] = 548.38616943
-# K[1,1] = 375.934387
-# K[2,0] = 266.881897
-# K[2,1] = 231.099091
-# K[2,2] = 1.0
-# print K
-# exit()
-# cap = cv2.VideoCaputre('/home/pupil/slam_data/000/world.mkv')
+# cap = cv2.VideoCapture('/home/pupil/slam_data/000/world.mkv')
 cap = cv2.VideoCapture(2)
-cap.set(3,640)
+# cap.set(3,640)
 cap.set(4,480)
 s,img = cap.read()
 img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
@@ -44,7 +36,6 @@ for x in range(1,2000):
     s,img = cap.read()
     if not s:
     	break
-    # img = cv2.imread(f, cv2.CV_LOAD_IMAGE_GRAYSCALE)
     img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
     img = cv2.remap(img, map1, map2,cv2.INTER_LINEAR) 
     system.track_frame(img,x,x/30.,False)

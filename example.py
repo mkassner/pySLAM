@@ -34,12 +34,12 @@ for f in files:
     img = cv2.imread(f, cv2.CV_LOAD_IMAGE_GRAYSCALE)
     img = undistorter.undistort(img)
     system.track_frame(img,x,x/30.,False)
-    if x == 700:
+    if x == 900:
     	# system.unsetVisualization()
-    	pass
+    	break
 
 system.finalize()
-sleep(1)
+sleep(1) #need this for the system to finish.
 del system
 print 'Done'
 

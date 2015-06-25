@@ -3,82 +3,221 @@ cimport numpy as np
 import numpy as np
 from cpython.ref cimport PyObject, Py_INCREF, Py_DECREF
 import time
-
+import cython
 cdef extern from "Python.h":
     void PyEval_InitThreads()
 
 def init_threads():
     PyEval_InitThreads()
 
+cdef class SLAM_Frame:
+    cdef double[::1] cam_to_world
+    cdef float fx,fy,cx,cy,scale,timestamp
+    cdef int frame_id,w,h
+
+    def __cinit__(self,
+                 int frame_id,
+                 int w,
+                 int h,
+                 float fx,
+                 float fy,
+                 float cx,
+                 float cy,
+                 float scale,
+                 float timestamp,
+                 np.ndarray[np.double_t] cam_to_world ):
+        pass
+
+    def __init__(self,
+                 int frame_id,
+                 int w,
+                 int h,
+                 float fx,
+                 float fy,
+                 float cx,
+                 float cy,
+                 float scale,
+                 float timestamp,
+                 np.ndarray[np.double_t] cam_to_world ):
+        self.frame_id =  frame_id
+        self.w =  w
+        self.h =  h
+        self.fx =  fx
+        self.fy =  fy
+        self.cx =  cx
+        self.cy =  cy
+        self.scale =  scale
+        self.timestamp =  timestamp
+        self.cam_to_world = cam_to_world
+
+cdef class SLAM_K_Frame(SLAM_Frame):
+    cdef  float[:,::1] point_cloud
+
 
 cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
     PyObject* callback
-
     __init__(object callback):  # constructor. "this" argument is implicit.
         Py_INCREF(callback)
         this.callback = <PyObject*>callback
 
-
     __dealloc__():  # destructor
         Py_DECREF(<object>this.callback)
 
+    @cython.boundscheck(False)
     void publishKeyframe(sls.Frame* f) with gil:
-
+        cdef int plvl = 0
+        cdef int x,y,w,h
+        cdef float fx,fy,cx,cy,fxi,fyi,cxi,cyi
         cdef sls.shared_lock[sls.shared_mutex] lock = f.getActiveLock()
-        print f.id(),f.width(),f.height()
+        
+        w = f.width(plvl)
+        h = f.height(plvl)
+        fx = f.fx(plvl)
+        fy = f.fy(plvl)
+        cx = f.cx(plvl)
+        cy = f.cy(plvl)
 
-        cdef sls.Sim3 pose = f.getScaledCamToWorld()
-        for x in range(7):
-            print pose.data()[x]
-        pose.data() # assuming float data and skipping explicit sim3 cast
+        fxi = 1/fx
+        fyi = 1/fy
+        cxi = -cx / fx
+        cyi = -cy / fy
 
-        # boost::shared_lock<boost::shared_mutex> lock = f->getActiveLock();
+        #pose
+        cdef sls.Sim3 pose = f.getScaledCamToWorld(0)
+        cdef const double * t_mat = pose.matrix().data()
+        cdef np.ndarray[np.double_t,ndim=1] trans_mat = np.empty(4*4,np.double)
+        cdef float scale = pose.scale()
+        for x in range(16):
+            trans_mat[x] = t_mat[x]
 
-        # fMsg.id = f->id();
-        # fMsg.time = f->timestamp();
-        # fMsg.isKeyframe = true;
-
-        # int w = f->width(publishLvl);
-        # int h = f->height(publishLvl);
-
-        # memcpy(fMsg.camToWorld.data(),f->getScaledCamToWorld().cast<float>().data(),sizeof(float)*7);
-        # fMsg.fx = f->fx(publishLvl);
-        # fMsg.fy = f->fy(publishLvl);
-        # fMsg.cx = f->cx(publishLvl);
-        # fMsg.cy = f->cy(publishLvl);
-        # fMsg.width = w;
-        # fMsg.height = h;
-
-
-        # fMsg.pointcloud.resize(w*h*sizeof(InputPointDense));
-
-        # InputPointDense* pc = (InputPointDense*)fMsg.pointcloud.data();
-
-        # const float* idepth = f->idepth(publishLvl);
-        # const float* idepthVar = f->idepthVar(publishLvl);
-        # const float* color = f->image(publishLvl);
-
-        # for(int idx=0;idx < w*h; idx++)
-        # {
-        #     pc[idx].idepth = idepth[idx];
-        #     pc[idx].idepth_var = idepthVar[idx];
-        #     pc[idx].color[0] = color[idx];
-        #     pc[idx].color[1] = color[idx];
-        #     pc[idx].color[2] = color[idx];
-        #     pc[idx].color[3] = color[idx];
-        # }
+        cdef SLAM_K_Frame frame = SLAM_K_Frame(  f.id(),
+                                w,h,
+                                fx,fy,cx,cy,
+                                scale,
+                                f.timestamp(),
+                                trans_mat)
 
 
-        print "Key Frame"
-        # (<object>this.callback)()
+        #depth map: 
+        cdef const float * idepth = f.idepth(plvl)
+        cdef const float * idepthVar = f.idepthVar(plvl)
+        cdef const float * img = f.image(plvl)
+        cdef float depth
+        cdef float depth4 
+        cdef float scaledTH = 10**-3.0 #log10 of threshold on point's variance, in the respective keyframe's scale. min: -10.0, default: -3.0, max: 1.0
+        cdef float absTH = 10**-1.0 #log10 of threshold on point's variance, in absolute scale. min: -10.0, default: -1.0, max: 1.0
+        cdef np.ndarray[np.float32_t,ndim=2] points = np.empty((w*h,3+4),np.float32)
+
+        cdef int no_points = 0
+
+        for y in range(1,h-1):
+            for x in range(1,w-1):
+                if(idepth[x+y*w] <= 0):
+                    continue
+                depth = 1. / idepth[x+y*w]
+                depth4 = depth*depth 
+                depth4*= depth4
+                if idepthVar[x+y*w] * depth4 > scaledTH:
+                    continue
+                if idepthVar[x+y*w] * depth4 * scale*scale > absTH:
+                    continue
+
+                no_points +=1
+                #xyz
+                points[no_points,0]= (x*fxi + cxi) * depth
+                points[no_points,1]= (y*fyi + cyi) * depth
+                points[no_points,2]= depth
+                #rgba
+                points[no_points,3]= img[x+y*w]
+                points[no_points,4]= img[x+y*w]
+                points[no_points,5]= img[x+y*w]
+                points[no_points,6]= 100
+        if no_points:
+            points.resize((no_points,3+4),refcheck=False)
+            frame.point_cloud = points
+        else:
+            frame.point_cloud = None
+
+        # bool paramsStillGood = my_scaledTH == scaledDepthVarTH &&
+        #             my_absTH == absDepthVarTH &&
+        #             my_scale*1.2 > camToWorld.scale() &&
+        #             my_scale < camToWorld.scale()*1.2 &&
+        #             my_minNearSupport == minNearSupport &&
+        #             my_sparsifyFactor == sparsifyFactor;
+
+
+        #             if(my_sparsifyFactor > 1 && rand()%my_sparsifyFactor != 0) continue;
+
+        #             if(my_minNearSupport > 1)
+        #             {
+        #                 int nearSupport = 0;
+        #                 for(int dx=-1;dx<2;dx++)
+        #                     for(int dy=-1;dy<2;dy++)
+        #                     {
+        #                         int idx = x+dx+(y+dy)*width;
+        #                         if(originalInput[idx].idepth > 0)
+        #                         {
+        #                             float diff = originalInput[idx].idepth - 1.0f / depth;
+        #                             if(diff*diff < 2*originalInput[x+y*width].idepth_var)
+        #                                 nearSupport++;
+        #                         }
+        #                     }
+
+        #                 if(nearSupport < my_minNearSupport)
+
+
+        #     // create new ones, static
+        #     vertexBufferId=0;
+        #     glGenBuffers(1, &vertexBufferId);
+        #     glBindBuffer(GL_ARRAY_BUFFER, vertexBufferId);         // for vertex coordinates
+        #     glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * vertexBufferNumPoints, tmpBuffer, GL_STATIC_DRAW);
+        #     vertexBufferIdValid = true;
+
+
+
+        print "Key Frame",f.id()
+
+        (<object>this.callback)(frame)
 
     void publishTrackedFrame(sls.Frame* f) with gil:
-        pass
-        print "Tracked Frame"
-        # (<object>this.callback)()
+        cdef int plvl = 0
+        cdef int x,y,w,h
+        cdef float fx,fy,cx,cy,fxi,fyi,cxi,cyi
+        cdef sls.shared_lock[sls.shared_mutex] lock = f.getActiveLock()
+        
+        w = f.width(plvl)
+        h = f.height(plvl)
+        fx = f.fx(plvl)
+        fy = f.fy(plvl)
+        cx = f.cx(plvl)
+        cy = f.cy(plvl)
+
+        fxi = 1/fx
+        fyi = 1/fy
+        cxi = -cx / fx
+        cyi = -cy / fy
+
+        #pose
+        cdef sls.Sim3 pose = f.getScaledCamToWorld(0)
+        cdef const double * t_mat = pose.matrix().data()
+        cdef np.ndarray[np.double_t,ndim=1] trans_mat = np.empty(4*4,np.double)
+        cdef float scale = pose.scale()
+        for x in range(16):
+            trans_mat[x] = t_mat[x]
+
+        cdef SLAM_Frame frame = SLAM_K_Frame(  f.id(),
+                                w,h,
+                                fx,fy,cx,cy,
+                                scale,
+                                f.timestamp(),
+                                trans_mat)
+
+        (<object>this.callback)(frame)
+
 
     void publishKeyframeGraph(sls.KeyFrameGraph* graph) with gil:
-        print 'Graph'
+        pass
+        # print 'Graph'
 
     void publishDebugInfo(sls.Matrix201f data) with gil:
         print 'DebugInfo'
@@ -150,6 +289,9 @@ cdef class Slam_Context:
         sls.relocalizationTH = 0.7 #0, 1
         
         sls.depthSmoothingFactor = 1 # 0, 10
+
+        sls.displayDepthMap = True
+        sls.onSceenInfoDisplay = True
         # todo. automate this. Load dependecies with package.
         sls.packagePath = '/home/pupil/rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/'
 

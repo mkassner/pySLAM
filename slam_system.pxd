@@ -9,8 +9,6 @@ cdef extern from "<Eigen/Eigen>" namespace "Eigen":
         Matrix3f(int rows, int cols) except + 
         float * data()
 
-
-
     cdef cppclass aligned_allocator[T]: 
         pass
 
@@ -30,22 +28,39 @@ cdef extern from "<Eigen/Eigen>" namespace "Eigen":
     cdef cppclass Vector4f:
         pass
 
+    cdef cppclass Vector3d:
+        double& operator[](size_t)
 
 cdef extern from "<util/SophusUtil.h>":
     # type is set to double in header file.
     cdef cppclass SE3:
-        pass
+        double * data()
     cdef cppclass Sim3:
         double * data()
+        Sim3f cast[float]()
         const double scale() 
-        const Transformation matrix() const
-
+        const SophusMatrix4d matrix() const
+        Vector3d translation()
     cdef cppclass SO3:
         pass
 
+
+cdef extern from "<util/SophusUtil.h>" namespace "lsd_slam":
+    cdef SE3 se3FromSim3(const Sim3& sim3)
+
 cdef extern from "<sophus/sim3.hpp>" namespace "Sophus":
-    cdef cppclass Transformation:
-        double * data()
+
+    cdef cppclass SophusMatrix4f "Sophus::Matrix4f":
+        float* data()
+
+    cdef cppclass SophusMatrix4d "Sophus::Matrix4d":
+        double* data()
+
+    cdef cppclass Sim3f:
+        float * data()
+        const float scale() 
+        Vector3d translation()
+        const SophusMatrix4f matrix() const
 
     
 

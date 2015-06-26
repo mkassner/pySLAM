@@ -11,9 +11,9 @@ def init_threads():
     PyEval_InitThreads()
 
 cdef class SLAM_Frame:
-    cdef double[::1] cam_to_world
-    cdef float fx,fy,cx,cy,scale,timestamp
-    cdef int frame_id,w,h
+    cdef float[::1] _cam_to_world
+    cdef readonly float fx,fy,cx,cy,scale,timestamp
+    cdef readonly int frame_id,w,h
 
     def __cinit__(self,
                  int frame_id,
@@ -25,7 +25,7 @@ cdef class SLAM_Frame:
                  float cy,
                  float scale,
                  float timestamp,
-                 np.ndarray[np.double_t] cam_to_world ):
+                 np.ndarray[np.float32_t] cam_to_world ):
         pass
 
     def __init__(self,
@@ -38,7 +38,7 @@ cdef class SLAM_Frame:
                  float cy,
                  float scale,
                  float timestamp,
-                 np.ndarray[np.double_t] cam_to_world ):
+                 np.ndarray[np.float32_t] cam_to_world ):
         self.frame_id =  frame_id
         self.w =  w
         self.h =  h
@@ -48,21 +48,34 @@ cdef class SLAM_Frame:
         self.cy =  cy
         self.scale =  scale
         self.timestamp =  timestamp
-        self.cam_to_world = cam_to_world
+        self._cam_to_world = cam_to_world
 
     def __str__(self):
         return "SLAM Frame id:%s,ts:%s"%(self.frame_id,self.timestamp)
 
+    property cam_to_world:
+        def __get__(self):
+            return np.asarray(self._cam_to_world).reshape((4,4))
+
+
 cdef class SLAM_K_Frame(SLAM_Frame):
-    cdef  float[:,::1] point_cloud
+    cdef  float[:,::1] _point_cloud
 
     def __str__(self):
         cdef int pc_count 
         if self.point_cloud is None:
             pc_count = 0
         else:
-            pc_count = len(self.point_cloud)
+            pc_count = len(self._point_cloud)
         return "SLAM Key Frame id:%s,ts:%s, Point Count:%s"%(self.frame_id,self.timestamp,pc_count)
+
+    property point_cloud:
+        def __get__(self):
+            if self._point_cloud is None:
+                return None
+            return np.asarray(self._point_cloud)
+
+
 
 cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
     PyObject* callback
@@ -93,12 +106,18 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
         cyi = -cy / fy
 
         #pose
-        cdef sls.Sim3 pose = f.getScaledCamToWorld(0)
-        cdef const double * t_mat = pose.matrix().data()
-        cdef np.ndarray[np.double_t,ndim=1] trans_mat = np.empty(4*4,np.double)
-        cdef float scale = pose.scale()
+        cdef sls.Sim3f pose = f.getScaledCamToWorld(0).cast[float]()
+        cdef float * pose_p = pose.data()
+        cdef sls.Sim3f * new_pose = new sls.Sim3f()
+        cdef float * new_pose_p = new_pose.data()
+        for x in range(7):
+            new_pose_p[x] = pose_p[x]
+        cdef sls.SophusMatrix4f trans = pose.matrix()
+        cdef float* trans_p = trans.data()
+        cdef np.ndarray[np.float32_t,ndim=1] trans_mat = np.empty(4*4,np.float32)
+        cdef float scale = new_pose.scale()
         for x in range(16):
-            trans_mat[x] = t_mat[x]
+            trans_mat[x] = trans_p[x]
 
         cdef SLAM_K_Frame frame = SLAM_K_Frame(  f.id(),
                                 w,h,
@@ -144,9 +163,9 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
                 points[no_points,6]= 100
         if no_points:
             points.resize((no_points,3+4),refcheck=False)
-            frame.point_cloud = points
+            frame._point_cloud = points
         else:
-            frame.point_cloud = None
+            frame._point_cloud = None
 
         # bool paramsStillGood = my_scaledTH == scaledDepthVarTH &&
         #             my_absTH == absDepthVarTH &&
@@ -182,7 +201,6 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
         #     glBindBuffer(GL_ARRAY_BUFFER, vertexBufferId);         // for vertex coordinates
         #     glBufferData(GL_ARRAY_BUFFER, sizeof(MyVertex) * vertexBufferNumPoints, tmpBuffer, GL_STATIC_DRAW);
         #     vertexBufferIdValid = true;
-
         (<object>this.callback)(frame)
 
     void publishTrackedFrame(sls.Frame* f) with gil:
@@ -204,12 +222,19 @@ cdef cppclass cyOutput3DWrapper(sls.Output3DWrapper):
         cyi = -cy / fy
 
         #pose
-        cdef sls.Sim3 pose = f.getScaledCamToWorld(0)
-        cdef const double * t_mat = pose.matrix().data()
-        cdef np.ndarray[np.double_t,ndim=1] trans_mat = np.empty(4*4,np.double)
-        cdef float scale = pose.scale()
+        cdef sls.Sim3f pose = f.getScaledCamToWorld(0).cast[float]()
+        cdef float * pose_p = pose.data()
+        cdef sls.Sim3f * new_pose = new sls.Sim3f()
+        cdef float * new_pose_p = new_pose.data()
+        for x in range(7):
+            new_pose_p[x] = pose_p[x]
+        cdef sls.SophusMatrix4f trans = pose.matrix()
+        cdef float* trans_p = trans.data()
+        cdef np.ndarray[np.float32_t,ndim=1] trans_mat = np.empty(4*4,np.float32)
+        cdef float scale = new_pose.scale()
         for x in range(16):
-            trans_mat[x] = t_mat[x]
+            trans_mat[x] = trans_p[x]
+
 
         cdef SLAM_Frame frame = SLAM_Frame(  f.id(),
                                 w,h,

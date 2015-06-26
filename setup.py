@@ -7,13 +7,13 @@ extensions = [
         name="pySLAM",
         sources=['pySLAM.pyx'],
         include_dirs = [ np.get_include(),
-                        '../rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/src',
-                        '../rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/thirdparty/Sophus', 
+                        '/home/pupil/rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/src',
+                        '/home/pupil/rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/thirdparty/Sophus', 
                         '/usr/include/eigen3'],
 
         libraries = ['lsdslam'],
-        library_dirs = ['../rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/lib'],
-        extra_link_args=['-Wl,-R../rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/lib,-R/usr/local/lib'],
+        library_dirs = ['/home/pupil/rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/lib'],
+        extra_link_args=['-Wl,-R/home/pupil/rosbuild_ws/package_dir/lsd_slam/lsd_slam_core/lib,-R/usr/local/lib'],
         extra_compile_args=["-std=c++11"],
         language="c++")
 ]
@@ -21,11 +21,9 @@ extensions = [
 setup( 
     name="pySLAM",
     version="0.1",
-    packages = ['pySLAM'],
-    description="OpenGL UI powered by Cython",
     url="https://github.com/pupil-labs/pySLAM",
     author='Pupil Labs',
     author_email='info@pupil-labs.com',
-    license='MIT',
+    license='GNU',
     ext_modules=cythonize(extensions)
 )

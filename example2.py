@@ -19,7 +19,7 @@ K = K.T
 
 # cap = cv2.VideoCapture('/home/pupil/slam_data/000/world.mkv')
 cap = cv2.VideoCapture(2)
-# cap.set(3,640)
+cap.set(3,640)
 cap.set(4,480)
 s,img = cap.read()
 img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)

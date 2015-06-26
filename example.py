@@ -23,13 +23,15 @@ img = cv2.imread(f, cv2.CV_LOAD_IMAGE_GRAYSCALE)
 img = undistorter.undistort(img)
 
 system = pySLAM.Slam_Context(img.shape[1],img.shape[0], K.flatten())
+
+
 def callback(f):
-	if isinstance(f,pySLAM.SLAM_K_Frame):
-		print f
+	if isinstance(f,pySLAM.SLAM_K_Frame) or 1:
+		print f.frame_id, f.cam_to_world.T
 	else:
 		pass
+	# print f.cam_to_world
 system.setVisualization(callback)
-
 system.init(img,0,0)
 ts = time()
 x = 0
@@ -39,7 +41,7 @@ for f in files:
     img = cv2.imread(f, cv2.CV_LOAD_IMAGE_GRAYSCALE)
     img = undistorter.undistort(img)
     system.track_frame(img,x,x/30.,False)
-    if x == 900:
+    if x == 100:
     	# system.unsetVisualization()
     	break
 
